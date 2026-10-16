@@ -38,9 +38,17 @@ const isAlphabeticWord = (piece: string) => ALPHABETIC_WORD.test(piece) && !NOT_
 
 let icuSegmenter: Intl.Segmenter | null = null;
 
+/** Intl.Segmenter 不可用时的兜底：空白切分，CJK 片段交给上层按字处理。 */
+const whitespacePieces = (text: string): string[] => text.split(/(\s+)/).filter(piece => piece.length > 0);
+
 const icuWordPieces = (text: string): string[] => {
-    icuSegmenter ??= new Intl.Segmenter(undefined, { granularity: 'word' });
-    return Array.from(icuSegmenter.segment(text), part => part.segment);
+    try {
+        icuSegmenter ??= new Intl.Segmenter(undefined, { granularity: 'word' });
+        return Array.from(icuSegmenter.segment(text), part => part.segment);
+    } catch {
+        // 少数 WebView 没有 Intl.Segmenter（或缺 ICU 数据），不能让整条分词链路抛出去。
+        return whitespacePieces(text);
+    }
 };
 
 /** An engine's answer only counts when it rebuilds its input; anything else falls back to ICU. */

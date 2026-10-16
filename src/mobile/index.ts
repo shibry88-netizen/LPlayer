@@ -1,13 +1,15 @@
-import { installBackButtonHandler } from "./backButton";
-import { installPinchZoom } from "./pinchZoom";
-import { startPerfWatch } from "./perfTier";
-import { StatusBar } from "@capacitor/status-bar";
+// LPlayer 手机端适配层入口：性能档采样 + 安卓返回键层级栈 + 横竖屏识别 + 双指缩放。
+import { installBackButtonHandler } from './backButton';
+import { installOrientationWatcher } from './orientation';
+import { installPinchZoom } from './pinchZoom';
+import { startPerfWatch } from './perfTier';
 
 export const installMobileShell = (): void => {
-  startPerfWatch();
-  void installBackButtonHandler();
-  installPinchZoom();
-  void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
+    installOrientationWatcher();
+    startPerfWatch();
+    void installBackButtonHandler();
+    installPinchZoom();
 };
 
-export { getPerfTier, setPerfTier } from "./perfTier";
+export { getPerfTier, setPerfTier } from './perfTier';
+export { isPortraitViewport } from './orientation';

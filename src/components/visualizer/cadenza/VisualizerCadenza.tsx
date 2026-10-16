@@ -520,7 +520,8 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
                 <canvas ref={textCanvasRef} className="absolute inset-0 w-full h-full" />
             </div>
 
-            <div className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none">
+            <div data-lp-lyric-stage
+            className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none">
                 <AnimatePresence mode="wait">
                     {showText && !activeLine && (
                         <motion.div

@@ -85,3 +85,37 @@ html[data-lp-perf='mid'] .blur-3xl { filter: blur(12px) !important; }
   .lp-panel-root > div { padding-right: 0 !important; }
   .lp-panel-root > div > div { width: 100% !important; max-width: 100% !important; }
 }
+
+/* ═══ 竖屏专用歌词排版（手机专属）═══
+   横屏与桌面一律保持原装：所有规则都限定在 @media (pointer: coarse) + [data-lp-orient='portrait']。
+   起因：歌词舞台容器写死 h-[70vh]，外层是「flex 居中 + overflow-hidden」的舞台外壳，
+   竖屏下多行歌词一旦超过 70vh，就会在容器里上下对称挤压、再被外壳裁掉。 */
+
+@media (pointer: coarse) {
+  /* 1. 舞台容器交给内容定高（最多 62vh），并让开安全区 */
+  html[data-lp-orient='portrait'] [data-lp-lyric-stage] {
+    height: auto !important;
+    max-height: 62vh !important;
+    padding-top: max(var(--lp-safe-top), 12px) !important;
+    padding-bottom: max(var(--lp-safe-bottom), 12px) !important;
+    padding-left: max(var(--lp-safe-left), 14px) !important;
+    padding-right: max(var(--lp-safe-right), 14px) !important;
+  }
+
+  /* 2. 逐字歌词字号：6vw 在竖屏只有 ~22px，会被 clamp 下限顶成 36px，
+        一行放不下十个汉字 —— 换一套竖屏专用档位，跟着屏宽走。 */
+  html[data-lp-orient='portrait'] [data-lp-lyric-stage] [style*='font-size'] {
+    font-size: clamp(1.125rem, 5.6vw, 1.9rem) !important;
+    line-height: 1.42 !important;
+  }
+
+  /* 3. 行容器的 minHeight:300px 会把单句歌词也撑得很高，竖屏取消 */
+  html[data-lp-orient='portrait'] [data-lp-lyric-stage] > div {
+    min-height: 0 !important;
+  }
+
+  /* 4. 底部字幕：竖屏最多留三行预览，多出来的不占位 */
+  html[data-lp-orient='portrait'] .lp-subtitle-layer p:nth-child(n + 4) {
+    display: none !important;
+  }
+}

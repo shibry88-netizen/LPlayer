@@ -456,7 +456,8 @@ const VisualizerDiorama: React.FC<VisualizerDioramaProps> = (props) => {
                 </Canvas>
             </div>
 
-            <div className="relative z-10 w-full h-[70vh] flex items-end justify-center p-8 pointer-events-none">
+            <div data-lp-lyric-stage
+            className="relative z-10 w-full h-[70vh] flex items-end justify-center p-8 pointer-events-none">
                 <AnimatePresence mode="wait">
                     {showWaiting ? (
                         <motion.div

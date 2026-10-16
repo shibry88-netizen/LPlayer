@@ -63,19 +63,36 @@ let classicMeasureCanvas: HTMLCanvasElement | null = null;
 /**
  * Measures the width of a given word text using a 2D canvas context.
  */
+/** 测量拿不到值时的估算宽度：CJK 字形基本是方的，拉丁按 0.65 经验值。 */
+const estimateWordWidth = (text: string, pxSize: number): number => (
+    Array.from(text).length * pxSize * (isCJK(text) ? 1 : 0.65)
+);
+
 const measureWordWidth = (text: string, pxSize: number, fontStack: string, fontWeight: number): number => {
+    const estimate = estimateWordWidth(text, pxSize);
     if (typeof document === 'undefined') {
-        return text.length * pxSize * 0.65;
+        return estimate;
     }
-    if (!classicMeasureCanvas) {
-        classicMeasureCanvas = document.createElement('canvas');
+    try {
+        if (!classicMeasureCanvas) {
+            classicMeasureCanvas = document.createElement('canvas');
+        }
+        const context = classicMeasureCanvas.getContext('2d');
+        if (!context) {
+            return estimate;
+        }
+        context.font = `${fontWeight} ${pxSize}px ${fontStack}`;
+        // 主题字体名可能整串被浏览器拒收，此时 context.font 保持旧值，量出来的是别的字号的宽度，
+        // 字距会被算得极小、整行挤成一团甚至溢出。回读一次 px 值，对不上就退到通用族重来。
+        const appliedSize = Number((/[\d.]+px/.exec(context.font) ?? [''])[0].replace('px', ''));
+        if (!Number.isFinite(appliedSize) || Math.abs(appliedSize - pxSize) > 0.5) {
+            context.font = `${fontWeight} ${pxSize}px sans-serif`;
+        }
+        const measured = context.measureText(text).width;
+        return Number.isFinite(measured) && measured > 0 ? measured : estimate;
+    } catch {
+        return estimate;
     }
-    const context = classicMeasureCanvas.getContext('2d');
-    if (!context) {
-        return text.length * pxSize * 0.65;
-    }
-    context.font = `${fontWeight} ${pxSize}px ${fontStack}`;
-    return context.measureText(text).width;
 };
 
 const Visualizer: React.FC<VisualizerProps> = (props) => {
@@ -305,7 +322,8 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
         >
             {/* Main Container */}
             <motion.div
-                className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none will-change-transform"
+                data-lp-lyric-stage
+            className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none will-change-transform"
                 animate={lyricContainerFloat?.animate}
                 transition={lyricContainerFloat?.transition}
             >
