@@ -620,7 +620,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     return (
         <motion.div
             style={{ bottom: bottomBarBottomPx }}
-            className="absolute right-0 z-[60] flex flex-col items-end gap-4 pointer-events-none"
+            className="lp-panel-root absolute right-0 z-[60] flex flex-col items-end gap-4 pointer-events-none"
             onClick={(e) => e.stopPropagation()}
         >
             <div className="pr-4 md:pr-8">

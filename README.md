@@ -1,3 +1,15 @@
+> [!IMPORTANT]
+> **本仓库是 [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major) 的 fork，只做「安卓打包 + 手机端适配」，发布产物叫 LPlayer。**
+>
+> - **上游项目**：[chthollyphile/folia-major](https://github.com/chthollyphile/folia-major)（Folia · 辞曲新境），作者 [chthollyphile](https://github.com/chthollyphile)
+> - **代码来源**：播放器本体、全屏歌词动画、曲库与在线音乐接入**全部来自上游**，本仓库没有闭源改动，也没有删改上游功能
+> - **本仓库新增**：Capacitor 安卓壳、手机端适配层（安全区 / 触控热区 ≥44dp / 玻璃模糊性能三档 / 返回键层级栈 / 双指缩放）、LPlayer 名称与图标
+> - **分支**：`main` 跟随上游；`android-apk` 是安卓打包线。全部改动可用 `git diff main...android-apk` 查看
+> - **许可证**：AGPL-3.0（与上游一致）。本仓库的改动同样以 AGPL-3.0 发布，见 [LICENSE](LICENSE)
+> - **说明**：上游本身不提供安卓版（只发 Windows / macOS / Linux + Web）。本仓库的 APK 仅供自用与学习交流，请遵守 AGPL-3.0
+>
+> ---
+
 <p align="center">
   <img src="https://github.com/user-attachments/assets/b5d0e863-48be-497b-b0e9-4bd8d8ce9bf0" alt="Folia" width="100%" />
 </p>

@@ -1,0 +1,87 @@
+/* ═══ LPlayer 手机端适配层（P0）═══
+   依据《LPlayer · 手机端 UI 适配设计规范 v1.0》。
+   触屏规则全部包在 @media (pointer: coarse) 里，桌面端零影响；
+   性能档按 <html data-lp-perf> 生效，桌面默认不带该属性。 */
+
+:root {
+  --lp-safe-top: env(safe-area-inset-top, 0px);
+  --lp-safe-right: env(safe-area-inset-right, 0px);
+  --lp-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --lp-safe-left: env(safe-area-inset-left, 0px);
+  --lp-touch: 44px;
+  --lp-row: 52px;
+}
+
+/* ── P0-7 性能三档 ──
+   low：关掉全部 backdrop blur / 文字阴影（720p 老机型）
+   mid：大半径模糊压到安全值（默认档）
+   high：不加属性，保持原样 */
+html[data-lp-perf='low'] *,
+html[data-lp-perf='low'] *::before,
+html[data-lp-perf='low'] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  text-shadow: none !important;
+}
+html[data-lp-perf='mid'] .backdrop-blur-sm { backdrop-filter: blur(4px) !important; -webkit-backdrop-filter: blur(4px) !important; }
+html[data-lp-perf='mid'] .backdrop-blur,
+html[data-lp-perf='mid'] .backdrop-blur-md { backdrop-filter: blur(8px) !important; -webkit-backdrop-filter: blur(8px) !important; }
+html[data-lp-perf='mid'] .backdrop-blur-lg,
+html[data-lp-perf='mid'] .backdrop-blur-xl { backdrop-filter: blur(12px) !important; -webkit-backdrop-filter: blur(12px) !important; }
+html[data-lp-perf='mid'] .backdrop-blur-2xl,
+html[data-lp-perf='mid'] .backdrop-blur-3xl { backdrop-filter: blur(16px) !important; -webkit-backdrop-filter: blur(16px) !important; }
+html[data-lp-perf='mid'] .blur-2xl,
+html[data-lp-perf='mid'] .blur-3xl { filter: blur(12px) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-lp-perf] .lp-subtitle-layer * { filter: none !important; }
+}
+
+/* ── 触屏设备 ── */
+@media (pointer: coarse) {
+  html, body { overscroll-behavior: none; }
+  body { -webkit-tap-highlight-color: transparent; }
+
+  /* P0-5 触控热区：按钮 ≥44×44；需要豁免的元素加 data-lp-no-touch */
+  button:not([data-lp-no-touch]),
+  [role='button']:not([data-lp-no-touch]),
+  [role='tab']:not([data-lp-no-touch]) {
+    min-height: var(--lp-touch);
+    min-width: var(--lp-touch);
+  }
+  [role='option'], [role='menuitem'], [role='radio'] { min-height: var(--lp-row); }
+  input[type='range'] { min-height: var(--lp-touch); }
+
+  /* P0-1 安全区 */
+  .lp-safe-top { padding-top: var(--lp-safe-top); }
+  .lp-safe-bottom { padding-bottom: var(--lp-safe-bottom); }
+  .lp-subtitle-layer {
+    padding-left: max(var(--lp-safe-left), 16px);
+    padding-right: max(var(--lp-safe-right), 16px);
+    padding-bottom: max(var(--lp-safe-bottom), 8px);
+  }
+
+  /* P0-2 竖屏歌词：字号与层级按规范放大（组件内联字号，必须 !important） */
+  .lp-subtitle-layer p,
+  .lp-subtitle-layer [data-subtitle-track] {
+    font-size: 1.25rem !important;
+    line-height: 1.45 !important;
+    letter-spacing: 0.01em;
+  }
+  .lp-subtitle-layer [data-subtitle-track] { font-size: 1.0625rem !important; }
+  .lp-subtitle-layer p:first-child { font-weight: 600 !important; }
+  .lp-subtitle-layer p:nth-child(3) { font-size: 1.0625rem !important; opacity: .45; }
+  .lp-subtitle-layer p:nth-child(n+4) { font-size: 0.9375rem !important; opacity: .28; }
+
+  /* P0-4 侧边面板 → 窄屏全宽贴底（初版：宽度 + 安全区；抽屉手势下一步） */
+  .lp-panel-root {
+    left: 0 !important;
+    right: 0 !important;
+    align-items: stretch !important;
+    padding-left: max(var(--lp-safe-left), 8px);
+    padding-right: max(var(--lp-safe-right), 8px);
+    padding-bottom: max(var(--lp-safe-bottom), 8px);
+  }
+  .lp-panel-root > div { padding-right: 0 !important; }
+  .lp-panel-root > div > div { width: 100% !important; max-width: 100% !important; }
+}

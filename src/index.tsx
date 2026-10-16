@@ -22,4 +22,9 @@ installMemorySampleFeed();
 // if (import.meta.env.DEV) installCoverSizeAudit();
 installGlobalVisualizerFrameRateLimiter();
 
+import './mobile.css';
+import { installMobileShell } from './mobile';
+
+installMobileShell();
+
 void import('./bootstrap');

@@ -143,7 +143,7 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
                     // bottom 由共享 MotionValue 直接驱动，跟着底部基线走。
                     // 不要改回 transform：这一层下面压着 blur 辉光，多一个合成层就会变色。
                     style={{ bottom: subtitleBottomPx }}
-                    className="absolute left-0 right-0 text-center space-y-2 px-4 z-20 pointer-events-none"
+                    className="lp-subtitle-layer absolute left-0 right-0 text-center space-y-2 px-4 z-20 pointer-events-none"
                 >
                     {subtitleText ? (
                         <div className={contentClassName}>

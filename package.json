@@ -205,6 +205,11 @@
     }
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/splash-screen": "^6.0.4",
+    "@capacitor/status-bar": "^6.0.3",
     "@google/genai": "^2.24.0",
     "@neteasecloudmusicapienhanced/api": "^4.41.1",
     "@xhayper/discord-rpc": "^1.5.1",
@@ -224,6 +229,7 @@
   },
   "devDependencies": {
     "@applemusic-like-lyrics/ttml": "^1.0.1",
+    "@capacitor/cli": "^6.2.2",
     "@chenglou/pretext": "^0.0.9",
     "@emnapi/core": "1.11.3",
     "@emnapi/runtime": "1.11.3",
