@@ -18,7 +18,7 @@
     },
     "StatusBar": {
       "overlaysWebView": true,
-      "style": "LIGHT",
+      "style": "DARK",
       "backgroundColor": "#09090b"
     },
     "CapacitorHttp": {
