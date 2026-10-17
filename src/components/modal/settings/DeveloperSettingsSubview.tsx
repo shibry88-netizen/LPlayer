@@ -1,5 +1,5 @@
 import React, { useSyncExternalStore } from 'react';
-import { Activity, FolderOpen, ScrollText } from 'lucide-react';
+import { Activity, Bug, FolderOpen, ScrollText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
 import {
@@ -16,6 +16,7 @@ import {
     type DebugLogMode,
 } from '../../../services/debug/debugModule';
 import ConsoleLogPanel from '../../shared/ConsoleLogPanel';
+import { setIsDevDebugOverlayVisible, useAppChromeStore } from '../../../stores/useAppChromeStore';
 
 // src/components/modal/settings/DeveloperSettingsSubview.tsx
 // The debug module's switches: what is recorded, how its file opens, and where it lands.
@@ -132,9 +133,35 @@ const DeveloperSettingsSubview: React.FC<DeveloperSettingsSubviewProps> = ({
     // other, on a switch that had in fact flipped. A derived value is not a subscription.
     const capturing = useSyncExternalStore(subscribeToConsoleLog, isConsoleCaptureEnabled);
     const debug = useSyncExternalStore(subscribeToDebugModule, getDebugModuleSnapshot);
+    // 手机上按不了 Alt+Shift+L，所以浮层开关也必须落在这一页，否则没人能打开它。
+    const isDevDebugOverlayVisible = useAppChromeStore(state => state.isDevDebugOverlayVisible);
 
     return (
         <div className="space-y-4">
+            <div className={`rounded-2xl border p-4 ${settingsCardClass}`}>
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                        <div className="p-2 rounded-lg opacity-60 shrink-0">
+                            <Bug size={14} />
+                        </div>
+                        <div className="min-w-0 space-y-1">
+                            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                {t('options.devDebugOverlay') || 'Playback diagnostics overlay'}
+                            </span>
+                            <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                {'在播放页叠一层当前行的现场数据：源词表 rawActiveLine.words、行数与词数、可视化模式、歌词来源、实际字号。歌词没画出来时，用它把现场留下来。'}
+                            </div>
+                        </div>
+                    </div>
+                    <Switch
+                        isOn={isDevDebugOverlayVisible}
+                        onToggle={() => setIsDevDebugOverlayVisible(previous => !previous)}
+                        theme={theme}
+                        toggleOffBackgroundClass={toggleOffBackgroundClass}
+                    />
+                </div>
+            </div>
+
             <div className={`rounded-2xl border p-4 space-y-4 ${settingsCardClass}`}>
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
