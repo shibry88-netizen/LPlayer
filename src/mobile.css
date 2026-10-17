@@ -73,6 +73,17 @@ html[data-lp-perf='mid'] .blur-3xl { filter: blur(12px) !important; }
   .lp-subtitle-layer p:nth-child(3) { font-size: 1.0625rem !important; opacity: .45; }
   .lp-subtitle-layer p:nth-child(n+4) { font-size: 0.9375rem !important; opacity: .28; }
 
+  /* 正在播放卡片 → 手机端锚左上角。
+     组件自己把 bottom 绑在底栏基线的 MotionValue 上（桌面端保持原样），这里用 !important 把 bottom 让掉。
+     - 让开状态栏：安全区拿不到值时退回 12px
+     - 再下移 56px 避开播放页左上角那颗返回键（top-6 left-6 h-10 w-10 → 24~64px），两者不会叠
+     - 左对齐到返回键同一条 24px 竖线 */
+  .lp-now-playing-toast {
+    bottom: auto !important;
+    top: calc(max(var(--lp-safe-top), 12px) + 56px) !important;
+    left: max(var(--lp-safe-left), 24px) !important;
+  }
+
   /* P0-4 侧边面板 → 窄屏全宽贴底（初版：宽度 + 安全区；抽屉手势下一步） */
   .lp-panel-root {
     left: 0 !important;
