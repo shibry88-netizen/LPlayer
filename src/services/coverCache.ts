@@ -8,6 +8,7 @@ import {
     writeCoverAsset,
     type BinaryAssetWriteResult,
 } from './binaryAssetStore';
+import { usesDirectNetwork } from '../utils/platformProxy';
 
 interface StoredCoverDescriptor extends BinaryAssetWriteResult { }
 
@@ -21,7 +22,8 @@ const isStoredCoverDescriptor = (value: unknown): value is StoredCoverDescriptor
 };
 
 const buildCoverRequestUrl = (coverUrl: string): string => {
-    if (typeof window !== 'undefined' && window.electron) return coverUrl;
+    // 原生壳里没有那个代理，直连（CapacitorHttp 会让它变成不受 CORS 约束的原生请求）。
+    if (usesDirectNetwork()) return coverUrl;
     try {
         const hostname = new URL(coverUrl).hostname;
         if (hostname === 'y.gtimg.cn'

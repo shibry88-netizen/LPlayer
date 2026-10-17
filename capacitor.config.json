@@ -20,6 +20,9 @@
       "overlaysWebView": true,
       "style": "LIGHT",
       "backgroundColor": "#09090b"
+    },
+    "CapacitorHttp": {
+      "enabled": true
     }
   },
   "android": {

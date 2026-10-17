@@ -10,6 +10,7 @@ import { SongResult } from '../../../types';
 import { parseLyricsByFormat } from '../parserCore';
 import { detectNonTtmlTimedLyricFormat } from '../formatDetection';
 import { krcDecrypt } from './krcDecrypt';
+import { resolveProxiedUrl } from '../../platformProxy';
 import { applyDetectedChorusEffects, applyNeteaseChorusByTime } from '../chorusEffects';
 import type { NeteaseChorusRange } from '../chorusEffects';
 import { buildKugouLyricSearchQuery } from '../searchQuery';
@@ -115,7 +116,7 @@ async function requestKugou(url: string, params: Record<string, any>, module: st
   });
 
   const finalUrl = urlObj.toString();
-  const requestUrl = isElectron ? finalUrl : `/api/lyric-proxy?url=${encodeURIComponent(finalUrl)}`;
+  const requestUrl = resolveProxiedUrl(finalUrl);
 
   const finalHeaders = {
     'User-Agent': `Android14-1070-11070-201-0-${module}-wifi`,
@@ -231,7 +232,7 @@ async function searchKugouLyricsOld(keyword: string, page = 1, pageSize = 20): P
   });
 
   const finalUrl = urlObj.toString();
-  const requestUrl = isElectron ? finalUrl : `/api/lyric-proxy?url=${encodeURIComponent(finalUrl)}`;
+  const requestUrl = resolveProxiedUrl(finalUrl);
 
   try {
     const response = await fetch(requestUrl, {
