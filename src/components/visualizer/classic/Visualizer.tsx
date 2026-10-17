@@ -89,7 +89,12 @@ const measureWordWidth = (text: string, pxSize: number, fontStack: string, fontW
             context.font = `${fontWeight} ${pxSize}px sans-serif`;
         }
         const measured = context.measureText(text).width;
-        return Number.isFinite(measured) && measured > 0 ? measured : estimate;
+        if (!Number.isFinite(measured) || measured <= 0) {
+            return estimate;
+        }
+        // 上限保护：一个字素的宽度不可能超过 2 倍字号（中文大体 1 倍，拉丁更窄）。
+        // 超过就说明字体回退链路给了异常值 —— 那种值会把字距推到极大、把整行甩出屏幕。
+        return Math.min(measured, Array.from(text).length * pxSize * 2);
     } catch {
         return estimate;
     }
@@ -136,6 +141,25 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
         typeof window === 'undefined' ? 1200 : window.innerWidth
     ));
 
+    // 竖屏（手机竖着拿）单独一套字号档位：屏幕只有横屏一半宽，原来的 6vw 会直接顶到
+    // clamp 下限（36px），一行放不下十个汉字。方向用 matchMedia，旋转后立刻更新。
+    const [isPortraitLayout, setIsPortraitLayout] = useState(() => (
+        typeof window === 'undefined' || typeof window.matchMedia !== 'function'
+            ? false
+            : window.matchMedia('(orientation: portrait)').matches
+    ));
+
+    useEffect(() => {
+        if (typeof window.matchMedia !== 'function') {
+            return;
+        }
+        const query = window.matchMedia('(orientation: portrait)');
+        const apply = () => setIsPortraitLayout(query.matches);
+        apply();
+        query.addEventListener('change', apply);
+        return () => query.removeEventListener('change', apply);
+    }, []);
+
     useEffect(() => {
         const handleResize = () => {
             setViewportWidth(window.innerWidth);
@@ -150,10 +174,43 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
             return activeLine.words;
         }
         const layoutUnits = buildPostLyricLayoutUnits(activeLine, { semantic: true, sticky: true });
-        return buildDisplayWordsFromLayoutUnits(layoutUnits);
+        const layoutWords = buildDisplayWordsFromLayoutUnits(layoutUnits);
+        if (layoutWords.length > 0) {
+            return layoutWords;
+        }
+        // 极端兜底：布局链路整条给出空结果（空词表 / 分词失败）时，至少把整行按字拆开画出来，
+        // 别让整行凭空消失。含 CJK 的片段逐字，其余按空白；用 Array.from 切，代理对不会被劈开。
+        const fallbackText = activeLine.fullText?.trim();
+        if (!fallbackText) {
+            return [];
+        }
+        const fallbackTokens: string[] = [];
+        for (const raw of fallbackText.split(/\s+/).filter(Boolean)) {
+            if (/[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(raw)) {
+                fallbackTokens.push(...Array.from(raw));
+            } else {
+                fallbackTokens.push(raw);
+            }
+        }
+        if (fallbackTokens.length === 0) {
+            return [];
+        }
+        const fallbackStart = activeLine.startTime ?? 0;
+        const fallbackEnd = Math.max(activeLine.endTime ?? fallbackStart + 1, fallbackStart + 0.1);
+        const fallbackStep = (fallbackEnd - fallbackStart) / fallbackTokens.length;
+        return fallbackTokens.map((token, index) => ({
+            text: token,
+            startTime: fallbackStart + fallbackStep * index,
+            endTime: fallbackStart + fallbackStep * (index + 1),
+        }));
     }, [activeLine, resolvedClassicTuning.useLegacyLayout]);
 
-    const mainFontSize = `clamp(${(2.25 * lyricsFontScale).toFixed(3)}rem, ${(6 * lyricsFontScale).toFixed(3)}vw, ${(4.5 * lyricsFontScale).toFixed(3)}rem)`;
+    // 竖屏档位与下面的 getPixelFontSize 必须同步 —— 测量用的像素值要和实际渲染字号对得上，
+    // 否则字距是按错误字形宽度算出来的，中文逐字会被推得满行溢出。
+    const minFontRem = isPortraitLayout ? 1.125 : 2.25;
+    const preferredFontVw = isPortraitLayout ? 5.6 : 6;
+    const maxFontRem = isPortraitLayout ? 1.9 : 4.5;
+    const mainFontSize = `clamp(${(minFontRem * lyricsFontScale).toFixed(3)}rem, ${(preferredFontVw * lyricsFontScale).toFixed(3)}vw, ${(maxFontRem * lyricsFontScale).toFixed(3)}rem)`;
     const emptyFontSize = `clamp(${(1.5 * lyricsFontScale).toFixed(3)}rem, ${(3.5 * lyricsFontScale).toFixed(3)}vw, ${(2.25 * lyricsFontScale).toFixed(3)}rem)`;
     const { translationFontSize, upcomingFontSize } = resolveSubtitleFontSizes(lyricsFontScale);
 
@@ -191,9 +248,9 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
         const fontWeight = resolveThemeFontWeight(theme, 700);
         const getPixelFontSize = (fontScale: number, width: number): number => {
             const rem = 16;
-            const minPx = 2.25 * fontScale * rem;
-            const valPx = (6 * fontScale * width) / 100;
-            const maxPx = 4.5 * fontScale * rem;
+            const minPx = minFontRem * fontScale * rem;
+            const valPx = (preferredFontVw * fontScale * width) / 100;
+            const maxPx = maxFontRem * fontScale * rem;
             return Math.max(minPx, Math.min(valPx, maxPx));
         };
         const pxFontSize = getPixelFontSize(lyricsFontScale, viewportWidth);
@@ -279,7 +336,7 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
         });
 
         return { wordConfigs, lineConfig };
-    }, [activeLine, displayWords, resolvedClassicTuning.enableWordRotation, resolvedClassicTuning.useLegacyLayout, resolvedClassicTuning.wordSpacing, theme, lyricsFontScale, viewportWidth]);
+    }, [activeLine, displayWords, resolvedClassicTuning.enableWordRotation, resolvedClassicTuning.useLegacyLayout, resolvedClassicTuning.wordSpacing, theme, lyricsFontScale, viewportWidth, minFontRem, preferredFontVw, maxFontRem]);
 
     const layoutVariants = buildGlowWordLayoutVariants(theme.animationIntensity, resolvedClassicTuning.enableWordRotation);
     const bodyVariants = glowWordBodyVariants;

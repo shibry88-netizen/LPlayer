@@ -7,9 +7,10 @@ const PORTRAIT_ATTR = 'data-lp-orient';
 
 export const isPortraitViewport = (): boolean => {
   if (typeof window === 'undefined') return false;
-  const orientationType = window.screen?.orientation?.type;
-  if (typeof orientationType === 'string' && orientationType.length > 0) {
-    return orientationType.startsWith('portrait');
+  // matchMedia 的 orientation 由浏览器按**当前视口宽高比**维护，旋转后一定更新；
+  // screen.orientation 在 Capacitor WebView 里旋转后可能拿不到新值，会把横屏判成竖屏。
+  if (typeof window.matchMedia === 'function') {
+    return window.matchMedia('(orientation: portrait)').matches;
   }
   return window.innerHeight >= window.innerWidth;
 };
