@@ -407,7 +407,7 @@ const clearWebDeviceIdentity = (): void => {
     }
 };
 
-const persistWebSession = (response: any): void => {
+const persistWebSession = (response: any, fallbackCookieHeader?: string | null): void => {
     const cookies = response?.cookie || response?.data?.cookie;
     if (typeof cookies === 'string' && cookies) writeProviderSessionValue('kugou', 'cookie', cookies);
     if (Array.isArray(cookies) && cookies.length) writeProviderSessionValue('kugou', 'cookie', cookies.join('; '));
@@ -419,6 +419,29 @@ const persistWebSession = (response: any): void => {
     if (token) writeProviderSessionValue('kugou', 'token', String(token));
     if (userId) writeProviderSessionValue('kugou', 'userid', String(userId));
     if (dfid) writeProviderSessionValue('kugou', 'dfid', String(dfid));
+
+    // KuGouMusicApi 只把登录拿到的 token/userid 放在 Set-Cookie 里。WKWebView 会拦第三方
+    // cookie（ITP），所以 nginx 把原文复制到 X-Kugou-Cookie；这里兜底解析一次。
+    // 响应里没有就是没登录/未变化，不覆盖已有值。
+    if (!fallbackCookieHeader) return;
+    // 之所以不用正则：模板字符串里的反斜杠转义会被 JS 吃掉，直接拆字符串更稳
+    const pull = (name: string): string | null => {
+        for (const entry of fallbackCookieHeader.split(/[,;]/)) {
+            const separator = entry.indexOf('=');
+            if (separator <= 0) continue;
+            if (entry.slice(0, separator).trim().toLowerCase() !== name) continue;
+            const value = entry.slice(separator + 1).trim();
+            if (!value || value === 'undefined' || value === 'null' || value === '-') continue;
+            return value;
+        }
+        return null;
+    };
+    const headerToken = pull('token');
+    const headerUserId = pull('userid');
+    const headerDfid = pull('dfid');
+    if (headerToken) writeProviderSessionValue('kugou', 'token', headerToken);
+    if (headerUserId) writeProviderSessionValue('kugou', 'userid', headerUserId);
+    if (headerDfid) writeProviderSessionValue('kugou', 'dfid', headerDfid);
 };
 
 /**
@@ -506,7 +529,7 @@ export const requestKugou = async <T = unknown>(operation: KugouOperation, param
                 error,
             );
         }
-        persistWebSession(responseBody);
+        persistWebSession(responseBody, response.headers.get('x-kugou-cookie'));
         const body = responseBody?.body ?? responseBody;
         return body;
     };
