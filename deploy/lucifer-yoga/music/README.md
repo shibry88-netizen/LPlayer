@@ -71,6 +71,19 @@
 - 容器日志：目前只有启动行，不带 URL；但**没有 `sanitizeRequestUrl`**，所以保留 `json-file` 限 10m×3，
   一旦它开始打印请求行要立刻改 `driver: none`（与 netease 同样处理）
 
+### 6.1 酷狗的付费墙（2026-10-25 实测）
+
+| 请求 | 结果 |
+| :-- | :-- |
+| `/song/url` 不带 `dfid` | `errcode 20028`「本次请求需要验证」（一律） |
+| `/song/url` 带 `dfid` | 免费曲 → 有直链；热门曲 → `fail_process:["pkg","buy"]`、`pay_type:3`、`privilege:10`，**无 url** |
+| 再叠加完整设备指纹（MID/GUID/DEV/MAC/WEBGL） | 仍 `pkg,buy` → 真付费墙 |
+| 老接口 `m.kugou.com/app/i/getSongInfo.php` | 也空（`privilege:10`） |
+
+抽样 8 首里只有 2 首能拿到直链。**未登录/非会员 = 只能听免费曲**，用户感知为「只有纯音乐能播」。
+App 侧（`kugouProvider`）已把这类响应升成 `membership-required` / `purchase-required` / `entitlement-required`，
+不再误报成网络失败。
+
 > KuGouMusicApi 1.6.0 是**逐请求无状态**的（`server.js` 把 `req.cookies` 与 `query.cookie` 合并后使用，
 > 全仓无 `fs.writeFile`），所以容器不需要卷，登录态天然留在 App 侧。
 
