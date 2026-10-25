@@ -1024,6 +1024,9 @@ export const kugouProvider: OnlineMusicProvider = {
             // Diagnostic evidence for every failed request; when nothing plays, summarizePlaybackAttempts turns it into
             // one evidence-based error instead of returning null.
             const attempts: ProviderPlaybackAttempt[] = [];
+            // KuGou 用 fail_process 声明「这首歌需要付费包(pkg) / 单曲购买(buy)」。
+            // 它不属于网络或风控故障，必须如实升成 membership/purchase 才能给用户可行动的提示。
+            let paywall: 'membership' | 'purchase' | 'entitlement' | null = null;
             let lastError: unknown;
             // An auth failure or timeout stops the remaining /song/url qualities and variants; legacy still runs once.
             let songUrlChainStopped = false;
@@ -1082,6 +1085,15 @@ export const kugouProvider: OnlineMusicProvider = {
                                 quality: candidateQuality,
                                 ...(replayGain ? { replayGain } : {}),
                             };
+                        }
+                        const failProcess = valueOf(data, 'fail_process') ?? valueOf(response, 'fail_process');
+                        if (Array.isArray(failProcess)) {
+                            const flags = failProcess.map(flag => String(flag).toLowerCase());
+                            const wantsPurchase = flags.includes('buy');
+                            const wantsPackage = flags.includes('pkg');
+                            if (wantsPurchase && wantsPackage) paywall = 'entitlement';
+                            else if (wantsPurchase) paywall = 'purchase';
+                            else if (wantsPackage) paywall = 'membership';
                         }
                         const status = valueOf(data, 'status') ?? valueOf(response, 'status');
                         const errorCode = valueOf(data, 'errcode', 'error_code') ?? valueOf(response, 'errcode', 'error_code');
@@ -1162,6 +1174,26 @@ export const kugouProvider: OnlineMusicProvider = {
                     lastError = error;
                     attempts.push(attemptFromError('legacy_play_info', error));
                 }
+            }
+
+            if (paywall) {
+                const code = paywall === 'membership' ? 'membership-required'
+                    : paywall === 'purchase' ? 'purchase-required'
+                        : 'entitlement-required';
+                console.warn('[KuGouProvider] playback:entitlement', { hash, requestedQuality: quality, paywall });
+                throw new OnlineProviderError(
+                    code,
+                    `KuGou refused the song URL for ${hash} (fail_process declares pkg/buy)`,
+                    'kugou',
+                    lastError,
+                    undefined,
+                    undefined,
+                    {
+                        stage: 'audio-source',
+                        attempts,
+                        signInMayHelp: !hasKugouAuthenticatedSearchSession(),
+                    },
+                );
             }
 
             console.warn('[KuGouProvider] playback:unavailable', { hash, requestedQuality: quality, attemptedQualities: qualities });
