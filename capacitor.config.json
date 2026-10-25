@@ -27,5 +27,10 @@
   },
   "android": {
     "allowMixedContent": true
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#09090b",
+    "scrollEnabled": true
   }
 }

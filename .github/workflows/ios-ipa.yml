@@ -1,0 +1,107 @@
+name: iOS 无签名 IPA
+
+# 给 LPlayer 出 iOS 侧载包。产物是「未签名 ipa」：
+#   · 装机需要自己签（Sideloadly / AltStore / 免费 Apple ID，7 天有效）
+#   · TrollStore 设备可免签直接装
+# 想换成正式签名包，见 docs/ios-ipa-build.md 第 6 节。
+on:
+  workflow_dispatch:
+    inputs:
+      suffix:
+        description: 'versionName 后缀（iOS 轮次，如 i1）'
+        required: false
+        default: 'i1'
+  push:
+    tags:
+      - 'ios-v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: macos · unsigned ipa
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: 工具链自检
+        run: |
+          node -v; npm -v
+          xcodebuild -version
+          pod --version
+
+      # --allow-remote=all：npm 11 默认禁止抓「远程 tarball」依赖，
+      # 而 package.json 里 kugoumusicapi 就是一串 GitHub archive 地址，
+      # 不加这个会直接 EALLOWREMOTE。
+      - name: 依赖
+        run: npm ci --allow-remote=all --no-audit --no-fund
+
+      # @capacitor/ios 没进 package.json —— 用 --no-save 装，避免动 lockfile
+      # （写进 package.json 而 lock 不跟着更新，下一次 npm ci 会因为不同步直接失败）
+      - name: 补 @capacitor/ios
+        run: npm install @capacitor/ios@^6.2.2 --no-save --allow-remote=all --no-audit --no-fund
+
+      - name: Web 构建
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: 生成并修补 iOS 工程
+        run: bash packaging/ios/prepare-ios.sh
+
+      - name: Xcode 归档（禁用签名）
+        run: |
+          set -eux
+          cd ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$GITHUB_WORKSPACE/ios-out/App.xcarchive" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_ENTITLEMENTS="" \
+            archive 2>&1 | tee /tmp/xcodebuild.log | tail -60
+
+      - name: 装成 ipa
+        run: |
+          set -eux
+          VER=$(node -p "require('./package.json').version")
+          SUF="${{ github.event.inputs.suffix }}"
+          OUT="LPlayer-${VER}-${SUF:-i1}-ios-unsigned.ipa"
+          APP="ios-out/App.xcarchive/Products/Applications/App.app"
+          [ -d "$APP" ] || { echo "✗ 归档里没有 $APP"; exit 1; }
+          rm -rf ios-out/Payload && mkdir -p ios-out/Payload
+          cp -R "$APP" ios-out/Payload/
+          ( cd ios-out && zip -qry "$OUT" Payload )
+          ls -lh "ios-out/$OUT"
+          md5 -r "ios-out/$OUT" 2>/dev/null || md5sum "ios-out/$OUT"
+          echo "IPA_NAME=$OUT" >> "$GITHUB_ENV"
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: LPlayer-ios-unsigned
+          path: ios-out/*.ipa
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: 失败时贴构建日志尾巴
+        if: failure()
+        run: tail -200 /tmp/xcodebuild.log || true
