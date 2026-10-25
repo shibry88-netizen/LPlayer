@@ -1,5 +1,6 @@
-# LPlayer 在线音乐后端：网易云 /netease/ + QQ 音乐 /qq/
-# 结构参考 folia-major/deploy/docker/compose.yaml，去掉 gateway/backend/kugou/sync
+# LPlayer 在线音乐后端：网易云 /netease/ + QQ 音乐 /qq/ + 酷狗 /kugou/
+# 结构参考 folia-major/deploy/docker/compose.yaml，去掉 gateway/backend/sync
+# 2026-10-25 起加上 kugou-api（/kugou/，127.0.0.1:3300）
 #
 # ── 多用户数据隔离（2026-10-25 审计结论）──────────────────────────────────
 #  1) 三个源（网易云 / QQ / 酷狗）的登录态一律由 App 逐请求携带（?cookie= 或 header），
@@ -47,6 +48,29 @@ services:
       - "127.0.0.1:3200:3000"
     volumes:
       - qq-api-state:/app/.auth-state
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - music-internal
+      - music-egress
+    security_opt:
+      - no-new-privileges:true
+
+  kugou-api:
+    image: papersman/folia-kugou-api:latest
+    restart: unless-stopped
+    read_only: true
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      FOLIA_FORWARD_CLIENT_IP: "true"
+    ports:
+      - "127.0.0.1:3300:3000"
     tmpfs:
       - /tmp
     logging:

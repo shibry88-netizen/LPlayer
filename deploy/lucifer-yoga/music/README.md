@@ -55,30 +55,24 @@
 代价参考：二号 2C / 1967MB / 已加 1G swap，netease+qq 两容器约占 120MB，
 每加一个 API 容器约 +80~150MB。一人一实例最多撑 3~4 人，不建议。
 
-## 6. 酷狗上线时照这个做
+## 6. 酷狗（2026-10-25 已上线）
 
-```yaml
-  kugou-api:
-    image: papersman/folia-kugou-api:latest
-    restart: unless-stopped
-    read_only: true           # KuGouMusicApi 不落盘，读文件系统即可跑
-    environment:
-      HOST: 0.0.0.0
-      PORT: "3000"
-      FOLIA_FORWARD_CLIENT_IP: "true"
-    ports:
-      - "127.0.0.1:3300:3000"
-    tmpfs:
-      - /tmp
-    logging:
-      driver: json-file       # 先留日志，确认其中 cookie 是否打码后再决定要不要关
-      options:
-        max-size: "10m"
-        max-file: "3"
-```
+| 项 | 值 |
+| :-- | :-- |
+| 镜像 | `papersman/folia-kugou-api:latest` |
+| 容器 | `music-kugou-api-1`，`127.0.0.1:3300→3000`，`read_only: true` + `tmpfs /tmp` |
+| 路由 | `/kugou/` → `http://127.0.0.1:3300/`（同样挂 `folia_noquery` 日志格式） |
+| App 侧 | `VITE_KUGOU_API_BASE=https://music.lucifer.yoga/kugou`（构建期写死，改了就得出新包） |
 
-上线后第一件事：`docker logs music-kugou-api-1 | grep -c 'cookie='` 与
-`docker logs music-kugou-api-1 | grep -c MASKED`，两个数字相等才说明日志里是打码值。
+实测：
+- `GET /kugou/search?keyword=周杰伦&page=1&pagesize=2` → 200，`status:1`，真实曲目
+- `OPTIONS` 预检 → **204**，`access-control-allow-origin: https://localhost`（WebView 跨域必需）
+- 探针请求 `/kugou/user/detail?cookie=KUGOU_PROBE_XYZ` → 日志里命中 **0**（access + error 都没有）
+- 容器日志：目前只有启动行，不带 URL；但**没有 `sanitizeRequestUrl`**，所以保留 `json-file` 限 10m×3，
+  一旦它开始打印请求行要立刻改 `driver: none`（与 netease 同样处理）
+
+> KuGouMusicApi 1.6.0 是**逐请求无状态**的（`server.js` 把 `req.cookies` 与 `query.cookie` 合并后使用，
+> 全仓无 `fs.writeFile`），所以容器不需要卷，登录态天然留在 App 侧。
 
 ## 7. 一键加固脚本
 
