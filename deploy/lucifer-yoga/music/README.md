@@ -84,6 +84,16 @@
 App 侧（`kugouProvider`）已把这类响应升成 `membership-required` / `purchase-required` / `entitlement-required`，
 不再误报成网络失败。
 
+### 6.2 登录凭证只能靠 Set-Cookie（别 hide 它）
+
+酷狗扫码登录成功后，`token` / `userid` **只出现在 `Set-Cookie` 里**（`login_qr_check.js` 把它们 push 进
+`resp.cookie`，`server.js` 再写成响应头），JSON body 里没有。而 `util/request.js` 会把 cookie 里的
+`token`/`userid` 注入上游参数、并用 `userid` 参与 `signKey` 签名 —— 也就是说：
+
+- **hide 了 Set-Cookie → 会员凭证到不了客户端 → 有会员也听不了会员曲**（2026-10-25 踩过）
+- 现在 `/kugou/` 使用 `proxy_pass_header Set-Cookie`，并把原文复制到 `X-Kugou-Cookie`
+  供 JS 读（WKWebView 会拦第三方 cookie，需要这个兜底；`Access-Control-Expose-Headers` 已放行）
+
 > KuGouMusicApi 1.6.0 是**逐请求无状态**的（`server.js` 把 `req.cookies` 与 `query.cookie` 合并后使用，
 > 全仓无 `fs.writeFile`），所以容器不需要卷，登录态天然留在 App 侧。
 
