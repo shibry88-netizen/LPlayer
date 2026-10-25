@@ -1,0 +1,71 @@
+# LPlayer 在线音乐后端：网易云 /netease/ + QQ 音乐 /qq/
+# 结构参考 folia-major/deploy/docker/compose.yaml，去掉 gateway/backend/kugou/sync
+#
+# ── 多用户数据隔离（2026-10-25 审计结论）──────────────────────────────────
+#  1) 三个源（网易云 / QQ / 酷狗）的登录态一律由 App 逐请求携带（?cookie= 或 header），
+#     后端不存任何用户态 ⇒ 多个人用同一个后端，账号数据天然互不可见。
+#  2) 因此「不要」给 qq-api 设置 QQ_AUTH_SESSION_PATH。那是服务端会话仓库，
+#     一开就变成「全局一个账号」，所有人共用 —— 要开必须按用户分目录/分实例。
+#  3) netease-api 的请求日志会把原始 URL（含 ?cookie=）原样打出来，而它没有日志级别开关，
+#     所以这里把 logging driver 设为 none；要排查上游问题时临时改回 json-file 再 up -d。
+#  4) qq-api 自带 sanitizeRequestUrl，cookie 会打成 *** MASKED ***，可以留日志，
+#     但要限大小，避免 27k 行那种无限增长。
+name: music
+
+services:
+  netease-api:
+    image: papersman/folia-netease-api:latest
+    restart: unless-stopped
+    read_only: true
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      FOLIA_FORWARD_CLIENT_IP: "true"
+      ENABLE_GENERAL_UNBLOCK: "false"
+    ports:
+      - "127.0.0.1:3100:3000"
+    tmpfs:
+      - /tmp
+    # 见文件头第 3 条：它打印的 URL 带 cookie 真值，且没有 LOG_LEVEL 开关
+    logging:
+      driver: "none"
+    networks:
+      - music-internal
+      - music-egress
+    security_opt:
+      - no-new-privileges:true
+
+  qq-api:
+    image: papersman/folia-qq-api:latest
+    restart: unless-stopped
+    read_only: true
+    environment:
+      PORT: "3000"
+      QQ_AUTH_STATE_PATH: /app/.auth-state/qq-device.json
+      # 只存 Android 设备指纹（imei/androidId/model），不含 musickey 或任何账号凭证
+    ports:
+      - "127.0.0.1:3200:3000"
+    volumes:
+      - qq-api-state:/app/.auth-state
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - music-internal
+      - music-egress
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  qq-api-state:
+
+networks:
+  music-internal:
+    driver: bridge
+    internal: true
+  music-egress:
+    driver: bridge

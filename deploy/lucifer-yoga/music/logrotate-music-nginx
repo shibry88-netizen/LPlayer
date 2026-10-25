@@ -1,0 +1,14 @@
+# 音乐后端日志：内容含用户请求（可能带 cookie），保留期压到 3 天
+/var/log/nginx/music-api.log /var/log/nginx/music-error.log {
+    daily
+    rotate 3
+    maxsize 20M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        [ -f /var/run/nginx.pid ] && kill -USR1 $(cat /var/run/nginx.pid) 2>/dev/null || true
+    endscript
+}
