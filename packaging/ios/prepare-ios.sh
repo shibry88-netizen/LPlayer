@@ -48,11 +48,23 @@ echo "==> Info.plist · UIBackgroundModes = [audio]"
 /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PLIST"
 
-# ---- 3. 显示名 / 状态栏 ----------------------------------------------------
-echo "==> Info.plist · 显示名与状态栏"
+# ---- 3. 显示名 / 状态栏 / 版本号 -------------------------------------------
+# cap add ios 生成的模板写死 1.0 / 1，必须覆盖：
+#   CFBundleShortVersionString = package.json 的 version（0.7.19）
+#   CFBundleVersion            = 整数构建号（CI 传 run_number，自签工具靠它判断升级）
+echo "==> Info.plist · 显示名、状态栏与版本号"
 pb_str "CFBundleDisplayName" "LPlayer"
 pb_str "UIStatusBarStyle" "UIStatusBarStyleLightContent"
 pb_str "UIUserInterfaceStyle" "Dark"
+
+APP_VERSION="$(node -p "require('./package.json').version")"
+APP_BUILD="${LPLAYER_IOS_BUILD:-1}"
+case "$APP_BUILD" in
+  ''|*[!0-9]*) echo "✗ LPLAYER_IOS_BUILD 必须是整数，收到：$APP_BUILD"; exit 1 ;;
+esac
+pb_str "CFBundleShortVersionString" "$APP_VERSION"
+pb_str "CFBundleVersion" "$APP_BUILD"
+echo "    version=$APP_VERSION build=$APP_BUILD"
 
 # ---- 4. AppDelegate：AVAudioSession ---------------------------------------
 echo "==> AppDelegate.swift · AVAudioSession = .playback"
@@ -63,5 +75,7 @@ echo "==> 自检"
 /usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity" "$PLIST" || true
 /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" || true
 /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$PLIST" || true
+/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST" || true
+/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST" || true
 grep -n "LPLAYER_AUDIO_SESSION" "$APPDELEGATE" || echo "⚠ AppDelegate 未打上音频会话补丁（后台播放可能被系统掐断）"
 echo "==> OK"

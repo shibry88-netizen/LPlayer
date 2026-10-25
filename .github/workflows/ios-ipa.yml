@@ -61,6 +61,9 @@ jobs:
 
       - name: 生成并修补 iOS 工程
         run: bash packaging/ios/prepare-ios.sh
+        env:
+          # CFBundleVersion：自签工具靠它判断「是否有更新」，用 run_number 保证单调递增
+          LPLAYER_IOS_BUILD: ${{ github.run_number }}
 
       - name: Xcode 归档（禁用签名）
         run: |
