@@ -16,19 +16,55 @@
 | 触发 | Actions → **iOS 无签名 IPA** → Run workflow，或打 tag `ios-v*` |
 | 产物 | `LPlayer-<version>-<suffix>-ios-unsigned.ipa`（如 `LPlayer-0.7.19-i1-ios-unsigned.ipa`） |
 | Bundle ID | `top.izuna.foliamajor`（与安卓同 appId；两者可共存于同一 Apple ID） |
-| 产物存放 | Actions 运行页的 Artifacts（保留 30 天），**不自动发 Release** |
+| 产物存放 | Actions 运行页的 Artifacts（保留 30 天）+ 人工挂 Release；首发 `ios-v0.7.19-i3` |
 | 签名 | 无。`CODE_SIGNING_ALLOWED=NO` 归档后直接把 `App.app` 塞进 `Payload/` 打的包 |
 
 **版本命名**：安卓用 `-mN`，iOS 用 `-iN`，两边各自递增，互不干扰。
 
+## 2.5 首版记录（0.7.19-i3，2026-10-25）
+
+| 项 | 值 |
+| :-- | :-- |
+| Release | <https://github.com/shibry88-netizen/LPlayer/releases/tag/ios-v0.7.19-i3> |
+| 直链 | `https://github.com/shibry88-netizen/LPlayer/releases/download/ios-v0.7.19-i3/LPlayer-0.7.19-i3-ios-unsigned.ipa` |
+| 大小 / md5 | 11,195,785 B / `ba3a2028b70b3a7bd40bf3d63b623861` |
+| versionName / build | `0.7.19` / `3`（`CFBundleVersion` = CI `run_number`） |
+| Bundle ID / 最低系统 / 架构 | `top.izuna.foliamajor` / iOS 13.0 / arm64 |
+| 分支 / 提交 | `ios-ipa` / `21d5426` |
+| 构建耗时 | macOS 全流程约 3.5 分钟（含 `npm ci`） |
+
+**已核对的项**（解包 `Info.plist` + 二进制）：
+`NSAppTransportSecurity` 两项为 true、`UIBackgroundModes=[audio]`、`CFBundleDisplayName=LPlayer`、
+可执行文件 magic `cffaedfe 0c000001`（arm64 真机）、二进制里能找到
+`AVAudioSession setCategory failed` 字符串（说明 AppDelegate 补丁确实编进去了）。
+
+**未核对**：一切真机行为（无 Mac、无设备）。
+
+### npm 11 的两个门槛（第一次跑会在这些地方翻车）
+
+1. **`npm ci` EUSAGE**：`package-lock.json` 与 `package.json` 不同步（缺 `@capacitor/*`）。
+   已在提交 `810341b` 里补齐 —— 这是**整仓级别的修**，以后 `npm ci` 才能跑。
+2. **`EALLOWREMOTE`**：npm 11 默认禁止抓「远程 tarball」依赖，而 `kugoumusicapi` 就是
+   GitHub archive 地址。`.npmrc` 里的 `allow-remote=root` 不够，实测要
+   **`--allow-remote=all`** 才过（`root` 仍报错）。
+3. **`allow-scripts`**：npm 11.16 起安装脚本默认挂起待批准（`onnxruntime-node`、`protobufjs`）。
+   本次 web 构建**不受影响**（esbuild/rollup 的二进制走 optionalDependencies，不需要 postinstall），
+   所以没去 approve。真要放开：`npm approve-scripts --allow-scripts-pending`。
+
+### 版本号必须自己盖
+
+`cap add ios` 生成的模板写死 `CFBundleShortVersionString=1.0` / `CFBundleVersion=1`，
+**不会**从 `package.json` 读。`prepare-ios.sh` 现在显式覆盖：short version 取 `package.json`，
+build 取 `LPLAYER_IOS_BUILD`（CI 传 `run_number`，自签工具靠它判断升级）。
+
 ## 3. 构建链路（5 步）
 
 ```bash
-npm ci                                        # 锁文件安装
+npm ci --allow-remote=all                     # 锁文件安装（npm 11 必须带这个标志）
 npm install @capacitor/ios@^6.2.2 --no-save   # 不进 package.json/lockfile
 npm run build                                 # → dist/
 bash packaging/ios/prepare-ios.sh               # cap add ios → cap sync → 打补丁
-xcodebuild archive + zip 成 ipa               # 无签名
+xcodebuild archive + zip 成 ipa               # 无签名 → ios-out/*.ipa
 ```
 
 `--no-save` 是刻意的：`@capacitor/ios` 一旦写进 package.json 而 lockfile 没跟着更新，
