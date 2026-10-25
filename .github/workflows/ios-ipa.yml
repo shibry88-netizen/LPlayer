@@ -86,7 +86,11 @@ jobs:
         run: |
           set -eux
           VER=$(node -p "require('./package.json').version")
+          # 后缀优先级：手动触发的输入 > tag 名 ios-v<ver>-<suf> 的尾部 > i1
           SUF="${{ github.event.inputs.suffix }}"
+          if [ -z "$SUF" ] && [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            SUF="${GITHUB_REF_NAME##*-}"   # ios-v0.7.19-i3 -> i3
+          fi
           OUT="LPlayer-${VER}-${SUF:-i1}-ios-unsigned.ipa"
           APP="ios-out/App.xcarchive/Products/Applications/App.app"
           [ -d "$APP" ] || { echo "✗ 归档里没有 $APP"; exit 1; }
