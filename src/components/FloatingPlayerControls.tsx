@@ -15,6 +15,10 @@ import { usePlayerBottomBarLayoutStore } from '../stores/usePlayerBottomBarLayou
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, clampPlayerBottomBarOffset, resolvePlayerBottomBarMaxOffset } from '../utils/playerBottomBarLayout';
 import type { PlayerControlSlotActionId, PlayerControlSlotContext } from './floating-player/playerControlSlotActions';
+import { usePlayerOverlayObstacle } from '../hooks/usePlayerOverlayLayout';
+import { resolveLyricSeekMediaTime } from '../utils/lyrics/lyricSeekTime';
+import { HifiProgressRow } from './hifi/HifiBadge';
+import { useIsHifiRoute } from './hifi/useHifiSignalPath';
 
 export interface TrackNavigation {
     /** 当前曲目的稳定身份，用于识别「确实换歌了」；相邻两首同名时标题字符串不变，不能拿标题判断 */
@@ -120,6 +124,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     onCommitBottomBarOffset,
 }) => {
     const { t } = useTranslation();
+    const { ref: layoutRef, invalidate: invalidateLayout } = usePlayerOverlayObstacle('player-controls', 'playback', !isHidden);
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBgExpanded = isDaylight ? 'bg-white/60 border border-white/20 shadow-xl' : 'bg-black/40 border border-white/5';
     const glassBgCollapsed = isDaylight ? 'bg-white/40 border border-white/20 shadow-lg hover:bg-white/50' : 'bg-black/20 border border-white/5 hover:bg-black/30';
@@ -334,9 +339,11 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                         ? 'max-w-[calc(100vw-120px)] md:max-w-[min(calc(32rem_+_var(--folium-player-bar-extra,0px)),calc(100vw-120px))]'
                         : 'max-w-[min(calc(32rem_+_var(--folium-player-bar-extra,0px)),100vw)] px-4'}`}
                 style={{ bottom: bottomBarBottomPx }}
+                onUpdate={invalidateLayout}
             >
             <motion.div
                 className="w-full flex justify-center transition-all duration-300 pointer-events-none"
+                onUpdate={invalidateLayout}
                 initial={false}
                 animate={{
                     opacity: isHidden ? 0 : 1,
@@ -359,6 +366,9 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                     }}
                 >
                     <motion.div
+                        ref={layoutRef}
+                        onUpdate={invalidateLayout}
+                        onLayoutAnimationComplete={invalidateLayout}
                         layout
                         transition={{ layout: CONTROL_LAYOUT_SPRING }}
                         onClick={handleClick}
@@ -439,8 +449,12 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                 duration={duration}
                 currentTime={lyricCurrentTime ?? currentTime}
                 onSeek={(time) => {
-                    const offset = currentTime.get() - (lyricCurrentTime?.get() ?? currentTime.get());
-                    onSeek(Math.max(0, time + offset));
+                    const target = resolveLyricSeekMediaTime(time, {
+                        mediaTimeSec: currentTime.get(),
+                        lyricTimeSec: lyricCurrentTime?.get() ?? currentTime.get(),
+                        durationSec: duration,
+                    });
+                    if (target !== null) onSeek(target);
                 }}
                 primaryColor={primaryColor}
                 secondaryColor={secondaryColor}
@@ -452,6 +466,9 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
         </>
     );
 };
+
+/** 展开视图里进度那一行在网格中的位置；HiFi 路线和 Web 路线共用。 */
+const PROGRESS_ROW_CLASS = 'col-span-3 row-start-3 w-full px-2 sm:col-start-2 sm:col-span-1 sm:row-start-2';
 
 // 展开视图组件
 interface ExpandedViewProps {
@@ -495,6 +512,19 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
     slotSecondary,
     slotContext,
 }) => {
+    const isHifiRoute = useIsHifiRoute();
+    const progressBar = (
+        <ProgressBar
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={onSeek}
+            primaryColor={primaryColor}
+            secondaryColor={secondaryColor}
+            trackColor={trackColor}
+            disabled={controlsDisabled}
+        />
+    );
+
     return (
         <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-x-4 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
             {/* Desktop Layout - responsive grid positions apply from the sm breakpoint */}
@@ -566,17 +596,14 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
             </div>
 
             {/* Row 2: Current Time, Progress Bar, Duration */}
-            <div className="col-span-3 row-start-3 w-full px-2 sm:col-start-2 sm:col-span-1 sm:row-start-2">
-                <ProgressBar
-                    currentTime={currentTime}
-                    duration={duration}
-                    onSeek={onSeek}
-                    primaryColor={primaryColor}
-                    secondaryColor={secondaryColor}
-                    trackColor={trackColor}
-                    disabled={controlsDisabled}
-                />
-            </div>
+            {/* HiFi 路线上时长后面多一块 HiFi 徽标，按这一行的宽度换长短，进度条留够最小宽度；Web 路线和原来一模一样。 */}
+            {isHifiRoute ? (
+                <HifiProgressRow className={PROGRESS_ROW_CLASS} isDaylight={isDaylight} disabled={controlsDisabled}>
+                    {progressBar}
+                </HifiProgressRow>
+            ) : (
+                <div className={PROGRESS_ROW_CLASS}>{progressBar}</div>
+            )}
         </div>
     );
 };

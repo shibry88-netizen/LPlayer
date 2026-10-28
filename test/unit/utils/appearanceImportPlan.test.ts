@@ -668,4 +668,19 @@ describe('buildImportPlan', () => {
         expect(p.groups).toEqual(['libraryWall']);
         expect(keys(plan({ libraryWallSeamStyle: '' }, { libraryWallSeamStyle: 'dots' }, unpinned))).toEqual([]);
     });
+
+    // The info strip direction joins the same group; an empty value is "the exporter had none".
+    it('plans the info strip direction under the library wall group', () => {
+        const p = plan({ libraryWallSeamDirection: 'horizontal' }, { libraryWallSeamDirection: 'auto' }, unpinned);
+        expect(keys(p)).toEqual(['libraryWallSeamDirection']);
+        expect(p.groups).toEqual(['libraryWall']);
+        expect(keys(plan({ libraryWallSeamDirection: '' }, { libraryWallSeamDirection: 'auto' }, unpinned))).toEqual([]);
+    });
+
+    // The blurred player header is a player-page look, offered under visualizer; false is a real value.
+    it('plans the blurred player header under the visualizer group', () => {
+        const p = plan({ playerHeaderBlur: false }, { playerHeaderBlur: true }, unpinned);
+        expect(keys(p)).toEqual(['playerHeaderBlur']);
+        expect(p.groups).toEqual(['visualizer']);
+    });
 });

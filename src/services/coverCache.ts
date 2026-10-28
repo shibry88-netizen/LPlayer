@@ -8,6 +8,7 @@ import {
     writeCoverAsset,
     type BinaryAssetWriteResult,
 } from './binaryAssetStore';
+import { lyricProxyWebUrl } from './lyricProxy';
 import { usesDirectNetwork } from '../utils/platformProxy';
 
 interface StoredCoverDescriptor extends BinaryAssetWriteResult { }
@@ -22,14 +23,14 @@ const isStoredCoverDescriptor = (value: unknown): value is StoredCoverDescriptor
 };
 
 const buildCoverRequestUrl = (coverUrl: string): string => {
-    // 原生壳里没有那个代理，直连（CapacitorHttp 会让它变成不受 CORS 约束的原生请求）。
+    // 原生壳里没有 /api/lyric-proxy，直连（CapacitorHttp 会把它变成不受 CORS 约束的原生请求）。
     if (usesDirectNetwork()) return coverUrl;
     try {
         const hostname = new URL(coverUrl).hostname;
         if (hostname === 'y.gtimg.cn'
             || hostname === 'kugou.com' || hostname.endsWith('.kugou.com')
             || hostname === 'kgimg.com' || hostname.endsWith('.kgimg.com')) {
-            return `/api/lyric-proxy?url=${encodeURIComponent(coverUrl)}`;
+            return lyricProxyWebUrl(coverUrl);
         }
     } catch {
         return coverUrl;
@@ -37,7 +38,8 @@ const buildCoverRequestUrl = (coverUrl: string): string => {
     return coverUrl;
 };
 
-const fetchCoverBlob = async (coverUrl: string): Promise<Blob> => {
+// Also used where a remote cover's bytes are wanted once (a local collection cover taken from a song).
+export const fetchCoverBlob = async (coverUrl: string): Promise<Blob> => {
     const response = await fetch(buildCoverRequestUrl(coverUrl), { mode: 'cors' });
     if (response.ok === false) throw new Error(`Cover request failed: ${response.status}`);
     return await response.blob();

@@ -23,6 +23,30 @@ export type PlaybackNavigationOptions = {
      * advance has already moved playback to that track.
      */
     isAutomixAdvance?: boolean;
+    /**
+     * Set only by playSong when it hands a local or Navidrome song to the library controller (playSong
+     * itself never reads it): true once a whole-queue write (a mod's replaceQueue, its undo) came while
+     * the play waited and the play's queue was the store's, so the landing leaves the new queue standing.
+     */
+    queueRewritten?: () => boolean;
+    /**
+     * Where a local or Navidrome song starts, in seconds, instead of its beginning: the web route's
+     * deck seeks there once its metadata is in, the HiFi route loads mpv there. Set by the HiFi bridge
+     * when it moves the song it was playing to the other engine (a HiFi failure, HiFi switched off, a
+     * replay after the queue ended), so the listener keeps their place. Only onPlayLocalSong and
+     * onPlayNavidromeSong read it.
+     */
+    startAtSec?: number;
+    /**
+     * false: the song is loaded and left paused, as a paused song moved to the other engine stays
+     * paused. Not given: it plays, as every play does. Only onPlayLocalSong and onPlayNavidromeSong read it.
+     */
+    autoplay?: boolean;
+    /**
+     * The play's own progress and success toasts ('loading', 'loaded') are not shown: the toast that
+     * is showing (why the song left HiFi) stays. Only onPlayLocalSong and onPlayNavidromeSong read it.
+     */
+    quietLoadedToast?: boolean;
 };
 
 export type NextTrackOptions = PlaybackNavigationOptions & {
@@ -46,9 +70,13 @@ export type UnavailableReplacementRequest = {
     queue: SongResult[];
     isFmCall: boolean;
     options: PlaybackNavigationOptions;
+    /**
+     * The queue and Personal FM of the moment the dialog is confirmed, when a whole-queue write came
+     * since the play that opened it and that play's queue was the store's; null otherwise, and then
+     * `queue` and `isFmCall` stand.
+     */
+    liveQueue?: () => { queue: SongResult[]; isFmCall: boolean } | null;
 };
-
-export type SkipPromptMessageKey = 'status.songUnavailablePrompt' | 'status.playbackErrorPrompt';
 
 export type PlaybackSnapshot = {
     currentSong: SongResult | null;

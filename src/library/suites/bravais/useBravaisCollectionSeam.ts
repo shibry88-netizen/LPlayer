@@ -1,13 +1,13 @@
 import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SongResult, UnifiedSong } from '../../../types';
-import type { LibraryActionId, LibraryCollectionSurfaceProps } from '../../core/contracts/suite';
-import type { CollectionMutationController, CollectionMutationSnapshot, LibraryMutationResult } from '../../core/contracts/mutations';
-import type { CollectionResourceSnapshot } from '../../core/contracts/resource';
-import { resolveCollectionSyncCounts } from '../../core/model/collectionProgress';
-import { resolveCollectionDescription } from '../../core/model/collectionDescription';
-import type { CollectionActions } from '../../core/bindings/useCollectionActions';
-import type { CollectionView } from '../../core/bindings/useCollectionView';
+import type { LibraryActionId, LibraryCollectionSurfaceProps } from '../../core/suite/suite.contract';
+import type { CollectionMutationController, CollectionMutationSnapshot, LibraryMutationResult } from '../../core/collection/mutations/mutations.contract';
+import type { CollectionResourceSnapshot } from '../../core/shared/resource.contract';
+import { resolveCollectionSyncCounts } from '../../core/collection/collectionProgress';
+import { resolveCollectionDescription } from '../../core/collection/collectionDescription';
+import type { CollectionActions } from '../../core/collection/mutations/useCollectionActions';
+import type { CollectionView } from '../../core/collection/useCollectionView';
 import type { LocalSongFolderSortDirection, LocalSongFolderSortField } from '../../../utils/localSongSorting';
 import { projectCollectionStatus, resolveWallPeriodCount } from './bravaisCollectionStatus';
 import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
@@ -102,7 +102,7 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
     const status = projection.status;
     const syncLine = projection.sync && (projection.sync.onResume && !declares('resume-sync') ? { ...projection.sync, onResume: undefined } : projection.sync);
 
-    // 「⋯ 更多」：低频的集合动作（重新拉取、改名、加入歌单、重扫、整理、导出、实体信息、删除）。
+    // 「⋯ 更多」：低频的集合动作（重新拉取、改名、加入歌单、重扫、整理、导出、实体信息、设置封面、删除）。
     const menu = useMemo<BravaisSeamMenuItem[]>(() => {
         const items: BravaisSeamMenuItem[] = [];
         const runMutation = (action: (controller: CollectionMutationController) => Promise<LibraryMutationResult>) => () => {
@@ -132,6 +132,7 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
                 run: runMutation(c => c.editEntity()),
             });
         }
+        if (offers('set-cover')) items.push({ id: 'set-cover', label: t('localCollectionCover.menuLabel'), run: runMutation(c => c.setCover()) });
         if (offers('delete-collection')) {
             items.push({
                 id: 'delete-collection',
