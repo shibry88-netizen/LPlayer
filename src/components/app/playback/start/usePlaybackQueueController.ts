@@ -55,6 +55,7 @@ import { setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setCurrentSong, se
 import { askedSongKeyRef, askForSong, playsDroppedSoFar, showSong, startOfAskedSong, startPlay, withdrawAsk } from '../currentSong';
 import { loadOnlineSongAudio } from '../source/songAudioSource';
 import { onlineFailureToast } from '../source/onlineFailureToast';
+import { findFreeSourceMatch, providerHasMembership, type FreeSourceMatch } from '../../../../services/playback/freeSourceFallback';
 import { offersRetry, onlineFailureOf, stopsPlayback, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { openLoginWindow } from '../../../login/loginWindowStore';
 import { useTranslation } from 'react-i18next';
@@ -647,7 +648,60 @@ export function usePlaybackQueueController({
         // count down to the next playable song, or, where there is none or the skips are used up, say what
         // happened, with a retry where asking again may help. The buttons call the newest playSong (the
         // quality, the stage and the queue of the moment they are pressed).
+        // 付费墙（要会员 / 要购买 / 没有权利）先问账号有没有会员：
+        //   · 有会员还被拒 → 不是权益问题，照原来的失败提示走
+        //   · 没有会员、或问不出来 → 去别的源找同一首歌，找到就直接播（一首歌只尝试一次）
+        const autoFreeSourceTried = useRef<Set<string>>(new Set());
         const presentOnlineFailure = (shown: OnlineFailure) => {
+            const caseId = (shown as { case?: string } | null)?.case;
+            const isEntitlement = caseId === 'subscription-required'
+                || caseId === 'purchase-required'
+                || caseId === 'entitlement-required';
+            if (!isEntitlement || !providerId || isLocal || isNavidrome) {
+                showOnlineFailureNow(shown);
+                return;
+            }
+            const attemptKey = `${providerId}:${getPlaybackSongKey(song)}`;
+            if (autoFreeSourceTried.current.has(attemptKey)) {
+                showOnlineFailureNow(shown);
+                return;
+            }
+            autoFreeSourceTried.current.add(attemptKey);
+            void (async () => {
+                const hasMembership = await providerHasMembership(providerId);
+                if (hasMembership === true) {
+                    // 有会员却被拒：凭证没送到，或者这首歌要走单曲购买。照常报，不换源。
+                    if (isLatestPlaybackRequest()) showOnlineFailureNow(shown);
+                    return;
+                }
+                let match: FreeSourceMatch | null = null;
+                try {
+                    match = await findFreeSourceMatch(song, providerId);
+                } catch (error) {
+                    console.warn('[App] Free source lookup failed:', error);
+                }
+                // 这次播放已经被更新的播放顶掉：换源的结果不该叠到新歌上。
+                if (!isLatestPlaybackRequest()) return;
+                if (!match) {
+                    showOnlineFailureNow(shown);
+                    return;
+                }
+                restoreFmModeIfNotLanded();
+                isLatestPlaybackRequest.abandon();
+                setStatusMsg({ type: 'info', text: `已自动换源：${match.providerName}` });
+                const live = readLiveQueue();
+                const nextQueue = live && queueIndexOf(live, song) >= 0
+                    ? buildQueueWithReplacementSong(live, song, match.song)
+                    : buildQueueWithReplacementSong(queueContext, song, match.song);
+                try {
+                    await playSong(match.song, nextQueue, isFmCall, deferredPlayOptions);
+                } catch (error) {
+                    console.error('[App] Auto source switch failed:', error);
+                }
+            })();
+        };
+
+        const showOnlineFailureNow = (shown: OnlineFailure) => {
             restoreFmModeIfNotLanded();
             // Whatever is shown below, this play gave up: the song before it, still playing, is no longer
             // overtaken (`onceShown` in currentSong.ts). Its own answer stays, for the countdown's skip and its cancel.
