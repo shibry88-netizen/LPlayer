@@ -1,0 +1,128 @@
+name: Android APK
+
+# 在 GitHub 的 ubuntu runner 上出安卓包（三号网络到 GitHub 只有 ~30KB/s，拉不动仓库）。
+# 签名用仓库 Secrets：ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASS（别名 folia）。
+# 产物与三号构建一致：未签名的 release → zipalign → apksigner（v1+v2+v3）。
+on:
+  workflow_dispatch:
+    inputs:
+      version_suffix:
+        description: 'versionName 后缀（如 m1）'
+        required: false
+        default: 'm1'
+  push:
+    tags:
+      - 'android-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ubuntu · apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: JDK 17（Capacitor 6 只吃 17）
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 依赖
+        run: npm ci --allow-remote=all --no-audit --no-fund
+
+      - name: Web 构建
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      # 仓库里的 android/ 只存手改过的文件（原生壳），完整工程现场生成再盖回去
+      - name: 生成并合并安卓工程
+        run: |
+          set -eux
+          rm -rf /tmp/android-committed
+          if [ -d android ]; then mv android /tmp/android-committed; fi
+          npx cap add android
+          if [ -d /tmp/android-committed ]; then cp -a /tmp/android-committed/. android/; fi
+          npx cap sync android
+
+      - name: 版本号
+        run: |
+          set -eux
+          VER=$(node -p "require('./package.json').version")
+          SUF="${{ github.event.inputs.version_suffix }}"
+          if [ -z "$SUF" ] && [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then SUF="${GITHUB_REF_NAME##*-}"; fi
+          SUF="${SUF:-m1}"
+          CODE=$((700 + ${GITHUB_RUN_NUMBER}))
+          # 不能低于已发布的 735，否则老用户装不上
+          if [ "$CODE" -le 735 ]; then CODE=736; fi
+          sed -i "s/versionCode [0-9]*/versionCode ${CODE}/" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${VER}-${SUF}\"/" android/app/build.gradle
+          grep -E 'versionCode |versionName ' android/app/build.gradle
+          echo "APP_VERSION=${VER}" >> "$GITHUB_ENV"
+          echo "APP_SUFFIX=${SUF}" >> "$GITHUB_ENV"
+
+      - name: 编译 release
+        run: |
+          set -eux
+          cd android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: 对齐 + 签名 + 自检
+        run: |
+          set -eux
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1)
+          export PATH="$BT:$PATH"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > /tmp/release.keystore
+          OUT="LPlayer-${APP_VERSION}-${APP_SUFFIX}-android.apk"
+          zipalign -f -p 4 android/app/build/outputs/apk/release/app-release-unsigned.apk /tmp/app-aligned.apk
+          apksigner sign --ks /tmp/release.keystore \
+            --ks-pass pass:"$ANDROID_KEYSTORE_PASS" --key-pass pass:"$ANDROID_KEYSTORE_PASS" \
+            --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+            --out "$OUT" /tmp/app-aligned.apk
+          rm -f /tmp/release.keystore
+          ls -l "$OUT"; md5sum "$OUT"
+          # 签名指纹必须和历届一致，否则老用户没法覆盖安装
+          apksigner verify --print-certs "$OUT" | tee /tmp/certs.txt | grep SHA-256
+          grep -q "c3625223e293f4f221f46d501281589de3f963c31ccb555660f5a114cedeec76" /tmp/certs.txt \
+            || { echo "✗ 签名指纹不匹配，拒绝发布"; exit 1; }
+          aapt dump badging "$OUT" | grep -E '^package|application-label:'
+          echo "APK_NAME=$OUT" >> "$GITHUB_ENV"
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: LPlayer-android-apk
+          path: LPlayer-*-android.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: 挂到 Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eux
+          TAG="android-v${APP_VERSION}"
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "LPlayer · 安卓 ${APP_VERSION}" --notes "自动构建：${GITHUB_REF_NAME}"
+          gh release upload "$TAG" "$APK_NAME" -R "$GITHUB_REPOSITORY" --clobber
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$APK_NAME"
