@@ -253,6 +253,9 @@ export function usePlaybackQueueController({
     // in App.tsx only because everything about playback used to be.
     /** Rising id per playSong call: a newer call supersedes an older one still awaiting `beforePlay`. */
     const playSongCallIdRef = useRef(0);
+    // 自动换源的尝试记录：「一首歌只换一次」。必须在 hook 级声明 ——
+    // 放进 playSong 里会变成「在普通函数里调 hook」，React #321。
+    const autoFreeSourceTriedRef = useRef<Set<string>>(new Set());
     /** FM state from before the oldest play that has not shown its song yet; a play that does not land puts it back. */
     // `queueWrites`: the whole-queue writes when it was kept. One that came since (a mod's replaceQueue ended FM)
     // makes it stale: no later play puts FM back to it.
@@ -651,7 +654,6 @@ export function usePlaybackQueueController({
         // 付费墙（要会员 / 要购买 / 没有权利）先问账号有没有会员：
         //   · 有会员还被拒 → 不是权益问题，照原来的失败提示走
         //   · 没有会员、或问不出来 → 去别的源找同一首歌，找到就直接播（一首歌只尝试一次）
-        const autoFreeSourceTried = useRef<Set<string>>(new Set());
         const presentOnlineFailure = (shown: OnlineFailure) => {
             const caseId = (shown as { case?: string } | null)?.case;
             const isEntitlement = caseId === 'subscription-required'
@@ -662,11 +664,11 @@ export function usePlaybackQueueController({
                 return;
             }
             const attemptKey = `${providerId}:${getPlaybackSongKey(song)}`;
-            if (autoFreeSourceTried.current.has(attemptKey)) {
+            if (autoFreeSourceTriedRef.current.has(attemptKey)) {
                 showOnlineFailureNow(shown);
                 return;
             }
-            autoFreeSourceTried.current.add(attemptKey);
+            autoFreeSourceTriedRef.current.add(attemptKey);
             void (async () => {
                 const hasMembership = await providerHasMembership(providerId);
                 if (hasMembership === true) {
