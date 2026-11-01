@@ -41,7 +41,8 @@ export const LUMIERE_MAX_RENDER_RESOLUTION = 2;
 /** 画布（文字、画框）的渲染分辨率：devicePixelRatio 钳在 1..2。 */
 export const resolveLumiereRenderResolution = (devicePixelRatio: number | undefined) => {
     const ratio = typeof devicePixelRatio === 'number' && Number.isFinite(devicePixelRatio) ? devicePixelRatio : 1;
-    return Math.min(LUMIERE_MAX_RENDER_RESOLUTION, Math.max(1, ratio));
+    // 手机掉帧降档后按预算收窄（renderBudget）：像素量按平方下降，观感几乎不变
+    return Math.min(LUMIERE_MAX_RENDER_RESOLUTION, budgetedPixelRatio(ratio));
 };
 
 /**

@@ -32,6 +32,7 @@ import { createHanabiTextures } from './mg/textures';
 import type { HanabiBeatSource } from './scene';
 import { buildHanabiOverlay } from './overlay';
 import type { HanabiTextures, HanabiTuning, PixiModule } from './types';
+import { budgetedPixelRatio } from '../../../mobile/renderBudget';
 
 // src/components/visualizer/hanabi/createHanabiPixiRuntime.ts
 // 花火的 Pixi 运行时：建一次，换歌就地交接（pixiRuntimeHost.ts）。每帧只读 currentTime 这个 MotionValue，
@@ -71,7 +72,7 @@ const MAX_RESOLUTION = 2;
 const DARK_SKY = 0.5;
 const NIGHT_BACKGROUND = '#0b0d24';
 
-const resolveRenderResolution = (devicePixelRatio: number) => Math.min(MAX_RESOLUTION, Math.max(1, devicePixelRatio || 1));
+const resolveRenderResolution = (devicePixelRatio: number) => Math.min(MAX_RESOLUTION, budgetedPixelRatio(devicePixelRatio));
 
 export class HanabiPixiRuntime {
     private readonly sceneCache = new PixiSceneCache<HanabiSceneEntry>({
